@@ -23,9 +23,11 @@ jobs:
 
     - name: Download 32-bit Toolchain
       run: |
-        # Download verified prebuilt toolchain archive directly from AOSP storage
-        wget https://googlesource.com -O toolchain.tar.gz
+        # Download the specific toolchain snapshot directly from Google Git
+        wget "https://googlesource.com" -O toolchain.tar.gz
         mkdir legacy-gcc
+        
+        # Extract archive completely into legacy-gcc
         tar -xzf toolchain.tar.gz -C legacy-gcc
         rm toolchain.tar.gz
 
