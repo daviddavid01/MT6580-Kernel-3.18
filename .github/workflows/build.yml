@@ -13,9 +13,13 @@ jobs:
 
     - name: Install Compiler Dependencies
       run: |
+        # Enable 32-bit library support explicitly
+        sudo dpkg --add-architecture i386
         sudo apt-get update
+        
+        # Installs system build utilities along with modern 32-bit ncurses compatibility options
         sudo apt-get install -y build-essential libncurses5-dev bison flex libssl-dev libelf-dev bc git ccache \
-          lib32z1 lib32ncurses6 lib32stdc++6 libncurses5:i386
+          lib32z1 lib32ncurses6 lib32stdc++6 libncurses6:i386
 
     - name: Download 32-bit Toolchain
       run: |
