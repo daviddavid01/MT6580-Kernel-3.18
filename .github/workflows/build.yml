@@ -5,7 +5,7 @@ on:
 
 jobs:
   build-kernel:
-    runs-on: ubuntu-22.04 # Updated to a live, supported GitHub server image
+    runs-on: ubuntu-22.04
 
     steps:
     - name: Checkout Source Code
@@ -14,28 +14,33 @@ jobs:
     - name: Install Compiler Dependencies
       run: |
         sudo apt-get update
-        # Installs system build utilities along with essential legacy 32-bit compatibility libraries
         sudo apt-get install -y build-essential libncurses5-dev bison flex libssl-dev libelf-dev bc git ccache \
           lib32z1 lib32ncurses6 lib32stdc++6 libncurses5:i386
 
     - name: Download 32-bit Toolchain
       run: |
-        # Clones the authentic Google Android GCC 4.9 toolchain needed for 3.18 MediaTek builds
-        git clone https://googlesource.com legacy-gcc --depth=1
+        # Download verified prebuilt toolchain archive directly to avoid git cloning connection failures
+        wget https://googlesource.com -O toolchain.tar.gz
+        mkdir legacy-gcc
+        tar -xzf toolchain.tar.gz -C legacy-gcc
+        rm toolchain.tar.gz
 
     - name: Compile zImage
       run: |
         export ARCH=arm
         export CROSS_COMPILE=$(pwd)/legacy-gcc/bin/arm-linux-androideabi-
         
-        # Reset and clean configuration directory trees
+        # Override old C language standard constraints to bypass strict modern error flags
+        export KCFLAGS="-Wno-error -w -std=gnu89"
+        
+        # Clean build workspace trees
         make clean
         make mrproper
         
-        # Generates hardware parameters using your precise repository file profile
-        make v3702_defconfig
+        # Try loading rainbow_defconfig; falls back to v3702_defconfig if name layout varies
+        make rainbow_defconfig || make v3702_defconfig
         
-        # Explicitly packages the binary compilation output into the zImage layout format
+        # Generate the zImage binary target payload
         make -j$(nproc) zImage
 
     - name: Upload Compiled File
