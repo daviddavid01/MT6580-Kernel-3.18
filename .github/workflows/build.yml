@@ -23,7 +23,7 @@ jobs:
 
     - name: Download 32-bit Toolchain
       run: |
-        # Download verified prebuilt toolchain archive directly to avoid git cloning connection failures
+        # Download verified prebuilt toolchain archive directly from AOSP storage
         wget https://googlesource.com -O toolchain.tar.gz
         mkdir legacy-gcc
         tar -xzf toolchain.tar.gz -C legacy-gcc
