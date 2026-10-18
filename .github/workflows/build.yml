@@ -1,11 +1,12 @@
 name: Cloud Kernel Compiler
 
 on:
-  workflow_dispatch: # Allows you to start the build manually with one click
+  workflow_dispatch: # Allows manual run trigger
 
 jobs:
   build-kernel:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04 # Updated to a live, supported GitHub server image
+
     steps:
     - name: Checkout Source Code
       uses: actions/checkout@v4
@@ -13,11 +14,13 @@ jobs:
     - name: Install Compiler Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential libncurses5-dev bison flex libssl-dev libelf-dev bc git ccache
+        # Installs system build utilities along with essential legacy 32-bit compatibility libraries
+        sudo apt-get install -y build-essential libncurses5-dev bison flex libssl-dev libelf-dev bc git ccache \
+          lib32z1 lib32ncurses6 lib32stdc++6 libncurses5:i386
 
     - name: Download 32-bit Toolchain
       run: |
-        # Clones the authentic Google Android GCC 4.9 toolchain required for older 3.18 kernels
+        # Clones the authentic Google Android GCC 4.9 toolchain needed for 3.18 MediaTek builds
         git clone https://googlesource.com legacy-gcc --depth=1
 
     - name: Compile zImage
@@ -25,14 +28,14 @@ jobs:
         export ARCH=arm
         export CROSS_COMPILE=$(pwd)/legacy-gcc/bin/arm-linux-androideabi-
         
-        # Cleans previous configurations
+        # Reset and clean configuration directory trees
         make clean
         make mrproper
         
-        # Uses your exact repository profile configuration file
+        # Generates hardware parameters using your precise repository file profile
         make v3702_defconfig
         
-        # Explicitly targets zImage using all available CPU threads
+        # Explicitly packages the binary compilation output into the zImage layout format
         make -j$(nproc) zImage
 
     - name: Upload Compiled File
