@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
     - name: Checkout Source Code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Install Compiler Dependencies
       run: |
@@ -17,6 +17,7 @@ jobs:
 
     - name: Download 32-bit Toolchain
       run: |
+        # Clones the authentic Google Android GCC 4.9 toolchain required for older 3.18 kernels
         git clone https://googlesource.com legacy-gcc --depth=1
 
     - name: Compile zImage
@@ -24,10 +25,15 @@ jobs:
         export ARCH=arm
         export CROSS_COMPILE=$(pwd)/legacy-gcc/bin/arm-linux-androideabi-
         
-        # Generates configuration using the exact Cubot hardware profile
-        make rainbow_defconfig || make mt6580_defconfig
+        # Cleans previous configurations
+        make clean
+        make mrproper
         
-        make -j$(nproc)
+        # Uses your exact repository profile configuration file
+        make v3702_defconfig
+        
+        # Explicitly targets zImage using all available CPU threads
+        make -j$(nproc) zImage
 
     - name: Upload Compiled File
       uses: actions/upload-artifact@v4
