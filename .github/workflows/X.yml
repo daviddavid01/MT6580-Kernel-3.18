@@ -5,34 +5,47 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-20.04
+    # Use the current active GitHub cloud runner
+    runs-on: ubuntu-latest
+
+    # Force all execution steps to run inside an Ubuntu 20.04 isolation box
+    container:
+      image: ubuntu:20.04
+      options: --user root
 
     steps:
     - name: Checkout Kernel Source
       uses: actions/checkout@v4
 
+    - name: Set up Environment Minimal Dependencies
+      run: |
+        # Docker images are stripped down; we need basic packages to let apt-get download tools safely
+        apt-get update
+        apt-get install -y sudo software-properties-common tzdata gnupg2
+
     - name: Clean Workspace
       run: |
         rm -rf *.tar.gz *.tgz toolchain/ toolchains/ tc/
-        make clean && make mrproper
+        # Ignored if clean target doesn't exist yet
+        make clean || true
+        make mrproper || true
 
     - name: Install Dependencies and GCC-ARM Toolchain
       run: |
         sudo dpkg --add-architecture i386
         sudo apt-get update
-        # Installs cross-compiler binaries natively supported by Ubuntu's package manager
-        sudo apt-get install -y build-essential libncurses5-dev bison flex libssl-dev libelf-dev bc git ccache \
+        # Installed inside the 20.04 container where libncurses5:i386 is fully available
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential libncurses5-dev bison flex libssl-dev libelf-dev bc git ccache \
           lib32z1 lib32ncurses6 lib32stdc++6 u-boot-tools libncurses5:i386 \
           gcc-arm-linux-gnueabi gcc-arm-linux-gnueabihf
 
     - name: Configure and Compile Kernel
       run: |
-        # Set absolute path variables for native cross compiler mapping
         export ARCH=arm
         export SUBARCH=arm
         export CROSS_COMPILE=arm-linux-gnueabi-
         
-        # Explicit compiler flag fixes to prevent modern GCC from throwing errors on vintage 3.18 code
+        # Explicit compiler flag fixes to prevent modern GCC variants from throwing errors on vintage 3.18 code
         export HOSTCFLAGS="-O2 -fcommon"
         export CFLAGS="-O2 -fcommon -Wno-pointer-sign"
         
