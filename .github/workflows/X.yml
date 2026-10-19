@@ -9,9 +9,9 @@ env:
   CROSS_COMPILE: arm-linux-gnueabi-
   HOSTCFLAGS: "-O3 -fcommon -w -Wno-error"
   HOSTCXXFLAGS: "-O3 -fcommon -w -Wno-error"
-  CFLAGS: "-O3 -fcommon -w -Wno-error -Wno-pointer-sign -Wno-attribute-alias -Wno-implicit-function-declaration -Wno-incompatible-pointer-types -Wno-int-conversion -Wno-frame-address -Wno-maybe-uninitialized -fno-delete-null-pointer-checks -Wno-misleading-indentation -Wno-address-of-packed-member"
-  KCFLAGS: "-O3 -fcommon -w -Wno-error"
-  KBUILD_CFLAGS: "-O3 -fcommon -w -Wno-error"
+  CFLAGS: "-O3 -fcommon -w -Wno-error -Wno-pointer-sign -Wno-attribute-alias -Wno-implicit-function-declaration -Wno-incompatible-pointer-types -Wno-int-conversion -Wno-frame-address -Wno-maybe-uninitialized -fno-delete-null-pointer-checks -Wno-misleading-indentation -Wno-address-of-packed-member -D__LINUX_ARM_ARCH__=7"
+  KCFLAGS: "-O3 -fcommon -w -Wno-error -D__LINUX_ARM_ARCH__=7"
+  KBUILD_CFLAGS: "-O3 -fcommon -w -Wno-error -D__LINUX_ARM_ARCH__=7"
 
 jobs:
   build:
@@ -24,8 +24,6 @@ jobs:
     steps:
     - name: 🛰️ [1/8] Intercepting Repository Stream
       uses: actions/checkout@v4
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }} # Enables self-healing write-back rights
 
     - name: 📦 [2/8] Provisioning Global Cloud Execution Architecture
       run: |
@@ -65,6 +63,11 @@ jobs:
         find arch/arm/include/asm/ -type f -name "*.h" -exec sed -i 's/#error "SMP is not supported on this platform"/\/\/ Bypassed SMP platform block/g' {} + 2>/dev/null || true
         find arch/arm/include/asm/ -type f -name "*.h" -exec sed -i 's/#error SMP not supported on pre-ARMv6 CPUs/\/\/ Bypassed Pre-ARMv6 SMP block/g' {} + 2>/dev/null || true
         find include/linux/ -type f -name "*.h" -exec sed -i 's/__attribute__((__printf__/\/\* Protected Specifier \*\/ __attribute__((__printf__/g' {} + 2>/dev/null || true
+        
+        # Absolute Rule Target: Eradicate __LINUX_ARM_ARCH__ conditional division stops inside div64.h
+        if [ -f "arch/arm/include/asm/div64.h" ]; then
+          sed -i 's/__LINUX_ARM_ARCH__ < 4/0/g' arch/arm/include/asm/div64.h 2>/dev/null || true
+        fi
 
         echo "=== [Phase 3] Purging Script Build Host Constraints ==="
         find ./scripts/ -type f -name "Makefile*" -exec sed -i -E 's/HOSTCFLAGS_.*:=/HOSTCFLAGS_:= -fcommon -w /g' {} + 2>/dev/null || true
@@ -169,20 +172,19 @@ jobs:
           fi
         done
 
-    # --- SELF-TESTING AUTO COMMIT BACKPASS ---
-    - name: 🔄 Automatically Commit Code Updates
-      if: always()
+    # Save the build status environment flag for the host git back-pass step
+    - name: Check Outfile Status
       run: |
-        git config --global user.name "GodMode-Matrix-Builder"
-        git config --global user.email "actions@github.com"
-        git add .github/workflows/build.yml || true
-        git diff-index --quiet HEAD || git commit -m "Self-Testing Optimization Pass [Auto-Healed Build Configuration]"
-        git push origin HEAD:${{ github.ref }} || echo "No structure alterations required or permission drop."
+        if [ -f "arch/arm/boot/zImage" ]; then
+           echo "BUILD_COMPLETE=true" >> $GITHUB_ENV
+        fi
 
     - name: 📦 [8/8] Archiving Production Artifacts
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: MT6580-LineageOS-Kernel
+        name: MT6580-LineageOS-Kernel-Debug-Suite
         path: |
-          arch/arm/boot/zImage
+          build_error.log
+          .config
+
