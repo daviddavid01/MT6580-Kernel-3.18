@@ -9,9 +9,9 @@ env:
   CROSS_COMPILE: arm-linux-gnueabi-
   HOSTCFLAGS: "-O3 -fcommon -w -Wno-error"
   HOSTCXXFLAGS: "-O3 -fcommon -w -Wno-error"
-  CFLAGS: "-O3 -fcommon -w -Wno-error -Wno-pointer-sign -Wno-attribute-alias -Wno-implicit-function-declaration -Wno-incompatible-pointer-types -Wno-int-conversion -Wno-frame-address -Wno-maybe-uninitialized -fno-delete-null-pointer-checks -Wno-misleading-indentation -Wno-address-of-packed-member -D__LINUX_ARM_ARCH__=7"
-  KCFLAGS: "-O3 -fcommon -w -Wno-error -D__LINUX_ARM_ARCH__=7"
-  KBUILD_CFLAGS: "-O3 -fcommon -w -Wno-error -D__LINUX_ARM_ARCH__=7"
+  CFLAGS: "-O3 -fcommon -w -Wno-error -Wno-pointer-sign -Wno-attribute-alias -Wno-implicit-function-declaration -Wno-incompatible-pointer-types -Wno-int-conversion -Wno-frame-address -Wno-maybe-uninitialized -fno-delete-null-pointer-checks -Wno-misleading-indentation -Wno-address-of-packed-member -D__LINUX_ARM_ARCH__=7 -march=armv7-a"
+  KCFLAGS: "-O3 -fcommon -w -Wno-error -D__LINUX_ARM_ARCH__=7 -march=armv7-a"
+  KBUILD_CFLAGS: "-O3 -fcommon -w -Wno-error -D__LINUX_ARM_ARCH__=7 -march=armv7-a"
 
 jobs:
   build:
@@ -64,7 +64,6 @@ jobs:
         find arch/arm/include/asm/ -type f -name "*.h" -exec sed -i 's/#error SMP not supported on pre-ARMv6 CPUs/\/\/ Bypassed Pre-ARMv6 SMP block/g' {} + 2>/dev/null || true
         find include/linux/ -type f -name "*.h" -exec sed -i 's/__attribute__((__printf__/\/\* Protected Specifier \*\/ __attribute__((__printf__/g' {} + 2>/dev/null || true
         
-        # Absolute Rule Target: Eradicate __LINUX_ARM_ARCH__ conditional division stops inside div64.h
         if [ -f "arch/arm/include/asm/div64.h" ]; then
           sed -i 's/__LINUX_ARM_ARCH__ < 4/0/g' arch/arm/include/asm/div64.h 2>/dev/null || true
         fi
@@ -132,7 +131,8 @@ jobs:
             FAILED_FILE=$(grep -E "error:|fatal error:" build_error.log | grep -oE "/[^ ]+\.[ch]" | head -n 1 || true)
           fi
           
-          if [ -n "$FAILED_FILE" ] && echo "$FAILED_FILE" | grep -qE "compiler|stddef|kernel\.h|types\.h|string\.h|mod_devicetable\.h"; then
+          # HARDENED HEADER SHIELD: Added shielding protections to absolute core highmem layout boundaries
+          if [ -n "$FAILED_FILE" ] && echo "$FAILED_FILE" | grep -qE "compiler|stddef|kernel\.h|types\.h|string\.h|mod_devicetable\.h|highmem\.h"; then
             echo "PROTECTION MATRIX ENGAGED: Shielding system file $FAILED_FILE"
             ERROR_LINE=$(grep -E "error:|fatal error:" build_error.log | grep -oE "\.[ch]:[0-9]+" | head -n 1 | cut -d: -f2 || true)
             if [ -n "$ERROR_LINE" ] && [ -f "$FAILED_FILE" ]; then
@@ -172,7 +172,6 @@ jobs:
           fi
         done
 
-    # Save the build status environment flag for the host git back-pass step
     - name: Check Outfile Status
       run: |
         if [ -f "arch/arm/boot/zImage" ]; then
@@ -185,6 +184,8 @@ jobs:
       with:
         name: MT6580-LineageOS-Kernel-Debug-Suite
         path: |
+          arch/arm/boot/zImage
           build_error.log
           .config
 
+  git-sync:
