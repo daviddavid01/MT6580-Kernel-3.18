@@ -9,9 +9,10 @@ env:
   CROSS_COMPILE: arm-linux-gnueabi-
   HOSTCFLAGS: "-O3 -fcommon -w -Wno-error"
   HOSTCXXFLAGS: "-O3 -fcommon -w -Wno-error"
-  CFLAGS: "-O3 -fcommon -w -Wno-error -Wno-pointer-sign -Wno-attribute-alias -Wno-implicit-function-declaration -Wno-incompatible-pointer-types -Wno-int-conversion -Wno-frame-address -Wno-maybe-uninitialized -fno-delete-null-pointer-checks -Wno-misleading-indentation -Wno-address-of-packed-member -D__LINUX_ARM_ARCH__=7 -march=armv7-a"
-  KCFLAGS: "-O3 -fcommon -w -Wno-error -D__LINUX_ARM_ARCH__=7 -march=armv7-a"
-  KBUILD_CFLAGS: "-O3 -fcommon -w -Wno-error -D__LINUX_ARM_ARCH__=7 -march=armv7-a"
+  CFLAGS: "-O3 -fcommon -w -Wno-error -Wno-pointer-sign -Wno-attribute-alias -Wno-implicit-function-declaration -Wno-incompatible-pointer-types -Wno-int-conversion -Wno-frame-address -Wno-maybe-uninitialized -fno-delete-null-pointer-checks -Wno-misleading-indentation -Wno-address-of-packed-member -D__LINUX_ARM_ARCH__=7 -march=armv7-a -mfloat-abi=softfp"
+  KCFLAGS: "-O3 -fcommon -w -Wno-error -D__LINUX_ARM_ARCH__=7 -march=armv7-a -mfloat-abi=softfp"
+  KBUILD_CFLAGS: "-O3 -fcommon -w -Wno-error -D__LINUX_ARM_ARCH__=7 -march=armv7-a -mfloat-abi=softfp"
+  KBUILD_AFLAGS: "-march=armv7-a -mfloat-abi=softfp"
 
 jobs:
   build:
@@ -131,7 +132,8 @@ jobs:
             FAILED_FILE=$(grep -E "error:|fatal error:" build_error.log | grep -oE "/[^ ]+\.[ch]" | head -n 1 || true)
           fi
           
-          if [ -n "$FAILED_FILE" ] && echo "$FAILED_FILE" | grep -qE "compiler|stddef|kernel\.h|types\.h|string\.h|mod_devicetable\.h|highmem\.h|bug\.h|init\.h"; then
+          # HARDENED HEADER SHIELD: Protected critical tracing layout files from structural code stripping anomalies
+          if [ -n "$FAILED_FILE" ] && echo "$FAILED_FILE" | grep -qE "compiler|stddef|kernel\.h|types\.h|string\.h|mod_devicetable\.h|highmem\.h|bug\.h|init\.h|ftrace\.h|trace\/"; then
             echo "PROTECTION MATRIX ENGAGED: Shielding system file $FAILED_FILE"
             ERROR_LINE=$(grep -E "error:|fatal error:" build_error.log | grep -oE "\.[ch]:[0-9]+" | head -n 1 | cut -d: -f2 || true)
             if [ -n "$ERROR_LINE" ] && [ -f "$FAILED_FILE" ]; then
@@ -182,14 +184,3 @@ jobs:
           .config
 
   git-sync:
-    runs-on: ubuntu-latest
-    needs: build
-    if: always()
-    steps:
-    - name: 🛰️ Fetching Remote Repository Tree Workspace
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: ⚙️ Configuring Git Execution Identity Profiles
-      run: |
