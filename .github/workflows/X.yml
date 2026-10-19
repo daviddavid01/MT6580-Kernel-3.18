@@ -44,16 +44,17 @@ jobs:
         export HOSTCFLAGS="-O2 -fcommon"
         export CFLAGS="-O2 -fcommon -Wno-pointer-sign"
         
-        echo "Searching for Cubot Rainbow or Huawei Y3 defconfig..."
-        # Finds config filenames containing rainbow, cubot, or y3
-        CONFIG_FILE=$(find arch/arm/configs/ -type f \( -name "*rainbow*" -o -name "*cubot*" -o -name "*y3*" \) -maxdepth 1 -print -quit | xargs basename 2>/dev/null)
-        
-        if [ -n "$CONFIG_FILE" ]; then
-          echo "Found specific device configuration matching: $CONFIG_FILE"
-          make "$CONFIG_FILE"
+        echo "Applying target device configuration tree..."
+        # Try loading specific config targets sequentially without crashing on find commands
+        if [ -f "arch/arm/configs/rainbow_defconfig" ]; then
+          make rainbow_defconfig
+        elif [ -f "arch/arm/configs/mt6580_defconfig" ]; then
+          make mt6580_defconfig
         else
-          echo "WARNING: No custom device defconfig found. Attempting generic mt6580 baseline."
-          make mt6580_defconfig || make rainbow_defconfig
+          echo "Looking for any available defconfig file in the repository..."
+          ANY_CONFIG=$(ls arch/arm/configs/ | head -n 1)
+          echo "Falling back to using: $ANY_CONFIG"
+          make "$ANY_CONFIG"
         fi
         
         # Compile the zImage target using maximum processing cores
