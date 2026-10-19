@@ -131,7 +131,8 @@ jobs:
             FAILED_FILE=$(grep -E "error:|fatal error:" build_error.log | grep -oE "/[^ ]+\.[ch]" | head -n 1 || true)
           fi
           
-          if [ -n "$FAILED_FILE" ] && echo "$FAILED_FILE" | grep -qE "compiler|stddef|kernel\.h|types\.h|string\.h|mod_devicetable\.h|highmem\.h"; then
+          # EXTENDED PROTECTION SYSTEM SHIELD: Locked down core architectural macro layouts from being corrupted
+          if [ -n "$FAILED_FILE" ] && echo "$FAILED_FILE" | grep -qE "compiler|stddef|kernel\.h|types\.h|string\.h|mod_devicetable\.h|highmem\.h|bug\.h|init\.h"; then
             echo "PROTECTION MATRIX ENGAGED: Shielding system file $FAILED_FILE"
             ERROR_LINE=$(grep -E "error:|fatal error:" build_error.log | grep -oE "\.[ch]:[0-9]+" | head -n 1 | cut -d: -f2 || true)
             if [ -n "$ERROR_LINE" ] && [ -f "$FAILED_FILE" ]; then
@@ -189,7 +190,3 @@ jobs:
     - name: 🛰️ Fetching Remote Repository Tree Workspace
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0
-
-    - name: ⚙️ Configuring Git Execution Identity Profiles
-      run: |
