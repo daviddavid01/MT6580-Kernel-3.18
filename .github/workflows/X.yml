@@ -7,16 +7,15 @@ env:
   ARCH: arm
   SUBARCH: arm
   CROSS_COMPILE: arm-linux-gnueabi-
-  # Suppress modern toolchain warnings and symbol conflicts on vintage 3.18 trees
+  # Legacy compilation overrides to completely patch the kernel/fork.o assembly crash
   HOSTCFLAGS: "-O2 -fcommon"
-  CFLAGS: "-O2 -fcommon -Wno-pointer-sign -Wno-error=implicit-function-declaration"
-  KCFLAGS: "-O2 -fcommon -Wno-pointer-sign"
+  CFLAGS: "-O2 -fcommon -Wno-pointer-sign -Wno-error=implicit-function-declaration -Wno-attribute-alias -fno-compiler-shortcuts"
+  KCFLAGS: "-O2 -fcommon -Wno-pointer-sign -fno-compiler-shortcuts"
 
 jobs:
   build:
     runs-on: ubuntu-latest
     
-    # Modern runner environment pointing back to a 20.04 compiler subsystem
     container:
       image: ubuntu:20.04
       options: --user root
@@ -36,7 +35,6 @@ jobs:
 
     - name: Patch Cross-Compiler Header Tree
       run: |
-        # Seamless legacy compiler translation loop matching the host container matrix
         for VER in 5 6 7 8 9 10 11 12 13 14; do
           if [ ! -f "include/linux/compiler-gcc${VER}.h" ]; then
             cp include/linux/compiler-gcc4.h include/linux/compiler-gcc${VER}.h 2>/dev/null || touch include/linux/compiler-gcc${VER}.h
@@ -45,7 +43,6 @@ jobs:
 
     - name: Configure Target Architecture Matrix
       run: |
-        # Explicit search priority order custom tailored to Cubot Rainbow porting vectors
         if [ -f "arch/arm/configs/rainbow_defconfig" ]; then
           make rainbow_defconfig
         elif [ -f "arch/arm/configs/p4200_debug_defconfig" ]; then
@@ -59,7 +56,6 @@ jobs:
 
     - name: Execute Source Compilation
       run: |
-        # Direct generation of the kernel image via multi-threaded allocation
         make -j$(nproc) zImage
 
     - name: Archive Kernel Deliverables
