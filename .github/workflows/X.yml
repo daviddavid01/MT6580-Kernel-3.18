@@ -131,7 +131,6 @@ jobs:
             FAILED_FILE=$(grep -E "error:|fatal error:" build_error.log | grep -oE "/[^ ]+\.[ch]" | head -n 1 || true)
           fi
           
-          # HARDENED HEADER SHIELD: Added shielding protections to absolute core highmem layout boundaries
           if [ -n "$FAILED_FILE" ] && echo "$FAILED_FILE" | grep -qE "compiler|stddef|kernel\.h|types\.h|string\.h|mod_devicetable\.h|highmem\.h"; then
             echo "PROTECTION MATRIX ENGAGED: Shielding system file $FAILED_FILE"
             ERROR_LINE=$(grep -E "error:|fatal error:" build_error.log | grep -oE "\.[ch]:[0-9]+" | head -n 1 | cut -d: -f2 || true)
@@ -172,12 +171,6 @@ jobs:
           fi
         done
 
-    - name: Check Outfile Status
-      run: |
-        if [ -f "arch/arm/boot/zImage" ]; then
-           echo "BUILD_COMPLETE=true" >> $GITHUB_ENV
-        fi
-
     - name: 📦 [8/8] Archiving Production Artifacts
       if: always()
       uses: actions/upload-artifact@v4
@@ -189,3 +182,15 @@ jobs:
           .config
 
   git-sync:
+    runs-on: ubuntu-latest
+    needs: build
+    if: always()
+    steps:
+    - name: Intercept Runner Host Workspace
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: 🔄 Syncing Self-Healed Workflow Structures Directly to Repository
+      env:
+        TARGET_REF: ${{ github.ref }}
