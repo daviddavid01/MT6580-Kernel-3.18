@@ -1,59 +1,58 @@
-name: Build MT6580 LineageOS Kernel Online
+name: Build Huawei Y3 CRO-U00 zImage (Fixed Architecture)
 
 on:
   workflow_dispatch:
-
-env:
-  ARCH: arm
-  SUBARCH: arm
-  CROSS_COMPILE: arm-linux-gnueabi-
+  push:
+    branches: [ main, master, los-14.1 ]
 
 jobs:
-  build:
-    runs-on: ubuntu-22.04
-    
-    # Run everything inside a 2016-era container environment
-    container:
-      image: ubuntu:16.04
-      options: --user root
+  build-kernel:
+    runs-on: ubuntu-24.04
 
     steps:
-    - name: Checkout Kernel Source Tree
-      uses: actions/checkout@v4
+      - name: Checkout Device Tree Configs
+        uses: actions/checkout@v4
 
-    - name: Install Historical Compilers and Tools
-      run: |
-        # Update the older container's package lists safely
-        apt-get update
-        
-        # Install the exact software and dependencies needed for 3.18 kernel compilation
-        apt-get install -y build-essential libncurses5-dev bison flex libssl-dev libelf-dev bc git ccache           gcc-arm-linux-gnueabi gcc-arm-linux-gnueabihf u-boot-tools lib32z1
+      - name: Fetch and Build Actual Kernel Source Code
+        run: |
+          docker run --rm -v ${{ github.workspace }}:/workspace -w /workspace ubuntu:16.04 bash -c "
+            echo '==================================================='
+            echo 'STEP 1: Installing Vintage Dependencies'
+            echo '==================================================='
+            apt-get update
+            apt-get install -y bc build-essential libncurses5-dev libssl-dev flex bison libelf-dev libxml2-utils lzma xz-utils git
 
-    - name: Configure Target Architecture Profile
-      run: |
-        # Clear previous configurations
-        make clean || true
-        make mrproper || true
-        
-        # Load your target hardware profile blueprint
-        if [ -f "arch/arm/configs/rainbow_defconfig" ]; then
-          make rainbow_defconfig
-        elif [ -f "arch/arm/configs/p4200_debug_defconfig" ]; then
-          make p4200_debug_defconfig
-        elif [ -f "arch/arm/configs/cro_u00_defconfig" ] || [ -f "arch/arm/configs/huawei_y3_defconfig" ]; then
-          make *cro*defconfig || make *y3*defconfig
-        else
-          echo "Falling back to generic MediaTek base configuration..."
-          make mt6580_defconfig
-        fi
+            echo '==================================================='
+            echo 'STEP 2: Cloning the ACTUAL Kernel Source Repository'
+            echo '==================================================='
+            git clone --depth=1 https://github.com /workspace/source
 
-    - name: Compile Kernel zImage
-      run: |
-        # Build natively using the era-accurate compiler setup
-        make -j$(nproc) zImage
+            echo '==================================================='
+            echo 'STEP 3: Cloning Correct Legacy Toolchain'
+            echo '==================================================='
+            git clone --depth=1 https://googlesource.com /workspace/toolchain
 
-    - name: Upload Compiled Deliverable
-      uses: actions/upload-artifact@v4
-      with:
-        name: MT6580-Legacy-zImage
-        path: arch/arm/boot/zImage
+            echo '==================================================='
+            echo 'STEP 4: Compiling inside the Kernel directory'
+            echo '==================================================='
+            cd /workspace/source
+            
+            export ARCH=arm
+            export CROSS_COMPILE=/workspace/toolchain/bin/arm-linux-androideabi-
+
+            if [ -f arch/arm/configs/cairo_defconfig ]; then
+              make cairo_defconfig
+            elif [ -f arch/arm/configs/cro_u00_defconfig ]; then
+              make cro_u00_defconfig
+            else
+              make mt6580_defconfig
+            fi
+
+            make -j\$(nproc) zImage
+          "
+
+      - name: Upload Finished zImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: CRO-U00-zImage
+          path: source/arch/arm/boot/zImage
