@@ -1,71 +1,75 @@
 name: Build MT6580 LineageOS GodMode Automated Matrix
-
 on:
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest # Host engine running on the latest stable machine structure
-
+    runs-on: ubuntu-latest
     container:
-      image: ubuntu:14.04 # Enforcing the absolute era-appropriate development sandbox
+      image: ubuntu:14.04
       options: --user root
 
     steps:
-    - name: 🛰️ [1/6] Intercepting Repository Stream
-      uses: actions/checkout@v4
+      - name: 🛰️ [1/6] Intercepting Repository Stream
+        uses: actions/checkout@v4
 
-    - name: 📦 [2/6] Provisioning Legacy Cloud Build Prerequisites
-      run: |
-        # Clear out broken or dead modern Ubuntu repository listings
-        sed -i -re 's/([a-z]{2}\.)?://ubuntu.com|://ubuntu.com' /etc/apt/sources.list
-        apt-get update
-        apt-get install -y bc bison build-essential flex git g++-multilib \
-          gcc-multilib gnupg gperf lib32readline-gplv2-dev lib32z1-dev \
-          libncurses5-dev libssl-dev lzop rsync zip zlib1g-dev libelf-dev
+      - name: 📦 [2/6] Provisioning Legacy Cloud Build Prerequisites
+        run: |
+          sed -i -re 's/([a-z]{2}\.)?://ubuntu.com|://ubuntu.com' /etc/apt/sources.list
+          apt-get update
+          apt-get install -y bc bison build-essential flex git g++-multilib \
+            gcc-multilib gnupg gperf lib32readline-gplv2-dev lib32z1-dev \
+            libncurses5-dev libssl-dev lzop rsync zip zlib1g-dev libelf-dev
 
-    - name: 🧬 [3/6] Fetching Official Legacy Google GCC 4.9 Toolchain
-      run: |
-        mkdir -p toolchains
-        cd toolchains
-        echo "Downloading MediaTek-compatible legacy ARM cross-compiler..."
-        git clone --depth=1 https://googlesource.com -b ndk-r14b
+      - name: 🧬 [3/6] Fetching Official Legacy Google GCC 4.9 Toolchain
+        run: |
+          mkdir -p toolchains
+          echo "Downloading MediaTek-compatible legacy ARM cross-compiler..."
+          git clone --depth=1 https://googlesource.com toolchains/arm-linux-androideabi-4.9
+          
+          # Persist variables across the remaining GitHub Action execution lifecycle
+          echo "$(pwd)/toolchains/arm-linux-androideabi-4.9/bin" >> $GITHUB_PATH
+          echo "ARCH=arm" >> $GITHUB_ENV
+          echo "SUBARCH=arm" >> $GITHUB_ENV
+          echo "CROSS_COMPILE=arm-linux-androideabi-" >> $GITHUB_ENV
 
-    - name: ⚙️ [4/6] Instantiating Android Target Hardware Blueprint
-      run: |
-        export PATH=$(pwd)/toolchains/arm-linux-androideabi-4.9/bin:$PATH
-        export ARCH=arm
-        export SUBARCH=arm
-        export CROSS_COMPILE=arm-linux-androideabi-
+      - name: ⚙️ [4/6] Instantiating Android Target Hardware Blueprint
+        run: |
+          if [ -f "arch/arm/configs/rainbow_defconfig" ]; then
+            make rainbow_defconfig
+          elif [ -f "arch/arm/configs/p4200_debug_defconfig" ]; then
+            make p4200_debug_defconfig
+          elif [ -f "arch/arm/configs/cro_u00_defconfig" ] || [ -f "arch/arm/configs/huawei_y3_defconfig" ]; then
+            make *cro*defconfig || make *y3*defconfig
+          else
+            ANY_CONFIG=$(ls arch/arm/configs/ | grep -E "defconfig$" | head -n 1)
+            make "$ANY_CONFIG"
+          fi
 
-        # Choose matching configuration blueprint
-        if [ -f "arch/arm/configs/rainbow_defconfig" ]; then
-          make rainbow_defconfig
-        elif [ -f "arch/arm/configs/p4200_debug_defconfig" ]; then
-          make p4200_debug_defconfig
-        elif [ -f "arch/arm/configs/cro_u00_defconfig" ] || [ -f "arch/arm/configs/huawei_y3_defconfig" ]; then
-          make *cro*defconfig || make *y3*defconfig
-        else
-          ANY_CONFIG=$(ls arch/arm/configs/ | grep -E "defconfig$" | head -n 1)
-          make "$ANY_CONFIG"
-        fi
+      - name: 🚀 [5/6] Commencing High-Speed Stable Kernel Compilation
+        run: |
+          echo "Injecting critical patches for Kernel 3.18.19 on MT6580..."
+          
+          # 1. Fix Perl script array validation bug 
+          if [ -f "kernel/time/timeconst.pl" ]; then
+            sed -i 's/defined(@val)/@val/g' kernel/time/timeconst.pl
+          fi
+          
+          # 2. Prevent compiler header mismatched tracking
+          if [ -f "include/linux/compiler-gcc4.h" ] && [ ! -f "include/linux/compiler-gcc5.h" ]; then
+            cp include/linux/compiler-gcc4.h include/linux/compiler-gcc5.h
+          fi
 
-    - name: 🚀 [5/6] Commencing High-Speed Stable Kernel Compilation
-      run: |
-        export PATH=$(pwd)/toolchains/arm-linux-androideabi-4.9/bin:$PATH
-        export ARCH=arm
-        export SUBARCH=arm
-        export CROSS_COMPILE=arm-linux-androideabi-
-        
-        echo "Starting clean, native compilation sweep..."
-        make -j$(nproc) zImage 2>&1 | tee compilation.log
+          echo "Starting clean, native compilation sweep..."
+          # Suppress warning-turned-errors that are guaranteed to emerge out of legacy MediaTek driver codebases
+          make KCFLAGS="-Wno-error" -j$(nproc) zImage 2>&1 | tee compilation.log
 
-    - name: 📦 [6/6] Archiving Production Artifacts
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: MT6580-LineageOS-Kernel-Package
-        path: |
-          arch/arm/boot/zImage
-          compilation.log
-          .config
+      - name: 📦 [6/6] Archiving Production Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: MT6580-LineageOS-Kernel-3.18.19-Package
+          path: |
+            arch/arm/boot/zImage
+            compilation.log
+            .config
