@@ -4,6 +4,10 @@ on:
   workflow_dispatch:
 
 env:
+  # Fully qualified target source repository
+  KERNEL_REPO: "https://github.com"
+  KERNEL_BRANCH: "master"
+  
   ARCH: arm
   SUBARCH: arm
   CROSS_COMPILE: arm-linux-gnueabi-
@@ -22,21 +26,13 @@ jobs:
       options: --user root
 
     steps:
-    - name: 🛰️ [1/8] Provisioning MT6580 Core Kernel Base Tree
+    - name: 🛰️ [1/7] Provisioning MT6580 Core Kernel Base Tree
       run: |
         apt-get update && apt-get install -y git
-        # Clones a full operational MT6580 kernel source structure instead of just a configuration repo
-        git clone https://github.com -b cm-13.0 .
+        # Clones the target repository directly into the execution workspace
+        git clone "${{ env.KERNEL_REPO }}" -b "${{ env.KERNEL_BRANCH }}" .
 
-    - name: 🛰️ [2/8] Injecting CRO_U00 Specific Device Overlays
-      run: |
-        # Merges your explicit device tree repository items into the kernel compilation space
-        mkdir -p device_workspace
-        git clone https://github.com -b cm-13.0 device_workspace
-        cp -r device_workspace/* . || true
-        rm -rf device_workspace
-
-    - name: 📦 [3/8] Provisioning Global Cloud Execution Architecture
+    - name: 📦 [2/7] Provisioning Global Cloud Execution Architecture
       run: |
         apt-get update && apt-get install -y sudo software-properties-common tzdata gnupg2 sed findutils grep coreutils mawk python3
         sudo dpkg --add-architecture i386
@@ -45,7 +41,7 @@ jobs:
           lib32z1 lib32ncurses6 lib32stdc++6 u-boot-tools libncurses5:i386 \
           gcc-arm-linux-gnueabi gcc-arm-linux-gnueabihf
 
-    - name: 🧬 [4/8] Simulating Absolute Cross-Compiler Compatibility Matrix
+    - name: 🧬 [3/7] Simulating Absolute Cross-Compiler Compatibility Matrix
       run: |
         echo "Forcing generation of missing dynamic compiler configuration headers..."
         mkdir -p include/linux
@@ -58,7 +54,7 @@ jobs:
           fi
         done
 
-    - name: ⚔️ [5/8] Global Pre-Compile Code Manipulation
+    - name: ⚔️ [4/7] Global Pre-Compile Code Manipulation
       run: |
         echo "=== [Phase 1] Purging Known Static Bottlenecks ==="
         find . -type f \( -name "Makefile*" -o -name "Kbuild*" -o -name "*.mk" -o -name "*.sh" -o -name "*.pl" -o -name "*.py" \) -exec sed -i -E 's/-Werror([-a-zA-Z0-9_]*)//g' {} + 2>/dev/null || true
@@ -84,15 +80,16 @@ jobs:
         find ./scripts/ -type f -name "Makefile*" -exec sed -i -E 's/HOSTCFLAGS_.*:=/HOSTCFLAGS_:= -fcommon -w /g' {} + 2>/dev/null || true
         find . -type f -name "*.h" -exec sed -i 's/__asm__ __volatile__("": : :"memory");/\/\/ Assembly Barrier Bypassed/g' {} + 2>/dev/null || true
 
-    - name: ⚙️ [6/8] Instantiating Android Target Hardware Blueprint
+    - name: ⚙️ [5/7] Instantiating Android Target Hardware Blueprint
       run: |
-        # Explicit target configuration mapping for MediaTek build environments
+        # Checks configuration listings matching your architecture context
         if [ -f "arch/arm/configs/cro_u00_defconfig" ]; then
           make cro_u00_defconfig
         elif [ -f "arch/arm/configs/huawei_cro_defconfig" ]; then
           make huawei_cro_defconfig
         else
           ANY_CONFIG=$(ls arch/arm/configs/ | grep -E "defconfig$" | head -n 1)
+          echo "Target fallback config isolated: $ANY_CONFIG"
           make "$ANY_CONFIG"
         fi
         
@@ -100,7 +97,7 @@ jobs:
         sed -i 's/# CONFIG_CPU_32v7 is not set/CONFIG_CPU_32v7=y/g' .config 2>/dev/null || true
         echo "CONFIG_SMP=y" >> .config
 
-    - name: 🚀 [7/8] Commencing Real-Time Self-Healing Kernel Compilation
+    - name: 🚀 [6/7] Commencing Real-Time Self-Healing Kernel Compilation
       run: |
         echo "Initializing Advanced Real-Time Error Interception Matrix..."
         
@@ -151,21 +148,18 @@ jobs:
           if [ -n "$FAILED_FILE" ] && [ -f "$FAILED_FILE" ]; then
             echo "CRITICAL FAULT ISOLATED IN SOURCE: $FAILED_FILE"
             sed -i -E 's/__attribute__\(\([^)]+\)\)//g' "$FAILED_FILE" 2>/dev/null || true
-            sed -i 's/const struct/struct/g' "$FAILED_FILE" 2>/dev/null || true
-            sed -i 's/static inline/inline/g' "$FAILED_FILE" 2>/dev/null || true
-            sed -i -E 's/(BUILD_BUG_ON|BUG_ON|panic)\([^;]*\);/\/\* Self-Healed Component \*\//g' "$FAILED_FILE" 2>/dev/null || true
-          else
-            echo "Loop diagnostic warning: Target issue could not be automatically extracted from logs."
           fi
           
           REPAIR_COUNT=$((REPAIR_COUNT+1))
         done
+        
+        if [ ! -f "arch/arm/boot/zImage" ]; then
+          echo "ERROR: GodMode loop exhausted without compiling zImage successfully."
+          exit 1
+        fi
 
-    - name: 💾 [8/8] Archiving Self-Healed Arm Kernel Image
-      if: always()
+    - name: 📦 [7/7] Uploading Compiled Kernel Binary Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: MT6580-GodMode-zImage
-        path: |
-          arch/arm/boot/zImage
-          .config
+        name: MT6580-zImage
+        path: arch/arm/boot/zImage
